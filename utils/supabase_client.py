@@ -131,8 +131,9 @@ class LocalTableQuery:
 
 
 class LocalSupabaseClient:
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, seed_dir: Optional[Path] = None):
         self._data_dir = data_dir
+        self._seed_dir = seed_dir
         self._table_files = {
             "events": self._data_dir / "events.json",
             "resources": self._data_dir / "resources.json",
@@ -157,6 +158,11 @@ class LocalSupabaseClient:
 
     def _ensure_table_file(self, path: Path) -> None:
         if not path.exists():
+            if self._seed_dir:
+                seed_path = self._seed_dir / path.name
+                if seed_path.exists():
+                    _save_rows(path, _load_rows(seed_path))
+                    return
             _save_rows(path, [])
 
     def _read_table(self, table_name: str) -> List[Dict[str, Any]]:
@@ -168,7 +174,14 @@ class LocalSupabaseClient:
 
 def _create_local_client() -> LocalSupabaseClient:
     project_root = Path(__file__).resolve().parents[1]
-    return LocalSupabaseClient(project_root / "data")
+    seed_dir = project_root / "data"
+
+    # Vercel serverless runtime is read-only under /var/task.
+    # Use /tmp for mutable fallback storage and seed it from bundled data files.
+    if os.environ.get("VERCEL"):
+        return LocalSupabaseClient(Path("/tmp/event-iq-data"), seed_dir=seed_dir)
+
+    return LocalSupabaseClient(seed_dir, seed_dir=seed_dir)
 
 
 url: Optional[str] = os.environ.get("SUPABASE_URL")
