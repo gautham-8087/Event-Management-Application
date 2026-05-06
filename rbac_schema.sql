@@ -1,7 +1,3 @@
--- Role-Based Access Control Schema Extension
--- Run this in Supabase SQL Editor AFTER the existing schema
-
--- Users table with roles
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,

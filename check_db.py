@@ -1,5 +1,4 @@
 from utils.supabase_client import supabase
-
 if not supabase:
     print("Supabase not connected.")
 else:
@@ -7,8 +6,6 @@ else:
         print("Checking archived_events table...")
         res = supabase.table('archived_events').select('count', count='exact').execute()
         print("Table exists. Count:", res.count)
-        
-        # Test Insert
         test_id = "TEST-ARCH-001"
         try:
              supabase.table('archived_events').insert({
@@ -17,7 +14,7 @@ else:
                 "type": "Test"
              }).execute()
              print("Insert successful.")
-             # Cleanup
+             
              supabase.table('archived_events').delete().eq('id', test_id).execute()
              print("Cleanup successful.")
         except Exception as e:

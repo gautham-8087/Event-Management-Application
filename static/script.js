@@ -8,6 +8,52 @@ const sendBtn = document.getElementById('send-btn');
 const closeChat = document.getElementById('close-chat');
 const minimizeChat = document.getElementById('minimize-chat');
 
+// Helper functions for custom modals
+function showLoadingModal(message) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+    modal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; text-align: center;">
+            <div style="width: 40px; height: 40px; border: 3px solid rgba(56, 189, 248, 0.3); border-top-color: #38bdf8; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+            <p style="color: var(--text-primary); margin: 0;">${message}</p>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    return modal;
+}
+
+function showSuccessModal(message) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+    modal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-check-circle" style="font-size: 48px; color: #10b981; margin-bottom: 1rem;"></i>
+            <p style="color: var(--text-primary); margin: 0 0 1.5rem 0; font-size: 1.1rem;">${message}</p>
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="background: #10b981; color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                OK
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    setTimeout(() => modal.remove(), 3000);
+}
+
+function showErrorModal(message) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+    modal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-x-circle" style="font-size: 48px; color: #ef4444; margin-bottom: 1rem;"></i>
+            <p style="color: var(--text-primary); margin: 0 0 1.5rem 0; font-size: 1.1rem;">${message}</p>
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="background: #ef4444; color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                OK
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+
 // Toggle Chat
 if (chatFab && chatWindow) {
     chatFab.addEventListener('click', () => {
@@ -68,7 +114,8 @@ async function loadData() {
                 </div>
             `;
 
-            if (typeof USER_ROLE !== 'undefined' && USER_ROLE !== 'student') {
+            // Only admins can delete events
+            if (typeof USER_ROLE !== 'undefined' && USER_ROLE === 'admin') {
                 div.appendChild(delBtn);
             }
             div.onclick = () => showEventDetails(evt.id);
@@ -117,27 +164,61 @@ if (logoutBtn) {
 
 // Delete Event Logic
 async function deleteEvent(eventId, eventTitle) {
-    if (!confirm(`Are you sure you want to delete "${eventTitle}"?\nThis action cannot be undone.`)) return;
+    // Create custom confirmation modal
+    const confirmModal = document.createElement('div');
+    confirmModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
 
-    try {
-        const res = await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
-        const data = await res.json();
+    confirmModal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-trash" style="font-size: 48px; color: #ef4444; margin-bottom: 1rem;"></i>
+            <h3 style="margin: 0 0 1rem 0;">Delete Event?</h3>
+            <p style="color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 600;">${eventTitle}</p>
+            <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.9rem;">This action cannot be undone.</p>
+            <div style="display: flex; gap: 1rem;">
+                <button id="cancel-delete" style="flex: 1; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Cancel
+                </button>
+                <button id="confirm-delete" style="flex: 1; background: #ef4444; color: white; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Delete
+                </button>
+            </div>
+        </div>
+    `;
 
-        if (data.success) {
-            if (data.status === 'pending') {
-                alert("Deletion requested. Waiting for Admin approval.");
+    document.body.appendChild(confirmModal);
+
+    // Handle confirmation
+    confirmModal.querySelector('#confirm-delete').onclick = async () => {
+        confirmModal.remove();
+
+        // Show loading state
+        const loadingModal = showLoadingModal('Deleting event...');
+
+        try {
+            const res = await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
+            const data = await res.json();
+            loadingModal.remove();
+
+            if (data.success) {
+                if (data.status === 'pending') {
+                    showSuccessModal("Deletion requested. Waiting for Admin approval.");
+                } else {
+                    showSuccessModal("Event deleted successfully!");
+                    loadData();
+                }
             } else {
-                // Toast or just reload
-                loadData();
+                showErrorModal(data.message || "Failed to delete event.");
             }
-        } else {
-            if (data.message) alert(data.message);
-            else alert("Failed to delete event.");
+        } catch (e) {
+            console.error("Delete failed", e);
+            loadingModal.remove();
+            showErrorModal("Error deleting event.");
         }
-    } catch (e) {
-        console.error("Delete failed", e);
-        alert("Error deleting event.");
-    }
+    };
+
+    confirmModal.querySelector('#cancel-delete').onclick = () => {
+        confirmModal.remove();
+    };
 }
 
 // Event Details Logic

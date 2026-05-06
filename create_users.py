@@ -1,9 +1,7 @@
 import bcrypt
 import sys
 sys.path.insert(0, 'utils')
-
 from supabase_client import supabase
-
 # User credentials as specified
 users_data = [
     {
@@ -50,11 +48,11 @@ for user_data in users_data:
     try:
         # Insert into users table
         result = supabase.table('users').upsert(user_record).execute()
-        print(f"✅ Created/Updated user: {user_data['email']} ({user_data['role']})")
+        print(f"[OK] Created/Updated user: {user_data['email']} ({user_data['role']})")
     except Exception as e:
-        print(f"❌ Error creating {user_data['email']}: {e}")
+        print(f"[ERROR] Error creating {user_data['email']}: {e}")
 
-print("\n✅ All users created successfully!")
+print("\n[OK] All users created successfully!")
 print("\nUser credentials:")
 print("=" * 50)
 for user in users_data:

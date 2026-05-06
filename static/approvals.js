@@ -1,13 +1,58 @@
-// Approvals System (Admin/Teacher)
+
 const approvalsBell = document.getElementById('approvals-bell');
 const approvalsModal = document.getElementById('approvals-modal');
 const closeApprovals = document.getElementById('close-approvals');
 const approvalsList = document.getElementById('approvals-list');
 const pendingCountBadge = document.getElementById('pending-count');
 
-// Fetch and update pending count
+// Helper functions for custom modals
+function showLoadingModal(message) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+    modal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; text-align: center;">
+            <div style="width: 40px; height: 40px; border: 3px solid rgba(56, 189, 248, 0.3); border-top-color: #38bdf8; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+            <p style="color: var(--text-primary); margin: 0;">${message}</p>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    return modal;
+}
+
+function showSuccessModal(message) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+    modal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-check-circle" style="font-size: 48px; color: #10b981; margin-bottom: 1rem;"></i>
+            <p style="color: var(--text-primary); margin: 0 0 1.5rem 0; font-size: 1.1rem;">${message}</p>
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="background: #10b981; color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                OK
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    setTimeout(() => modal.remove(), 3000);
+}
+
+function showErrorModal(message) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+    modal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-x-circle" style="font-size: 48px; color: #ef4444; margin-bottom: 1rem;"></i>
+            <p style="color: var(--text-primary); margin: 0 0 1.5rem 0; font-size: 1.1rem;">❌ ${message}</p>
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="background: #ef4444; color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                OK
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+
 async function updatePendingCount() {
-    if (!approvalsBell) return; // Only for admin/teacher
+    if (!approvalsBell) return;
 
     try {
         const res = await fetch('/api/pending-events');
@@ -131,89 +176,219 @@ function bindApprovalListeners() {
 
 // Approve event
 async function approveEvent(eventId) {
-    if (!confirm('Approve this event?')) return;
+    // Create custom confirmation modal
+    const confirmModal = document.createElement('div');
+    confirmModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
 
-    try {
-        const res = await fetch(`/api/approve-event/${eventId}`, {
-            method: 'POST'
-        });
+    confirmModal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-check-circle" style="font-size: 48px; color: #10b981; margin-bottom: 1rem;"></i>
+            <h3 style="margin: 0 0 1rem 0;">Approve Event?</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 2rem;">This will create the event and allocate the requested resources.</p>
+            <div style="display: flex; gap: 1rem;">
+                <button id="cancel-approve" style="flex: 1; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Cancel
+                </button>
+                <button id="confirm-approve" style="flex: 1; background: #10b981; color: white; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Approve
+                </button>
+            </div>
+        </div>
+    `;
 
-        const data = await res.json();
+    document.body.appendChild(confirmModal);
 
-        if (res.ok && data.success) {
-            alert('✅ Event approved successfully!');
-            showApprovalsModal(); // Refresh list
-            updatePendingCount(); // Update badge
-            loadData(); // Refresh dashboard
-        } else {
-            alert('❌ ' + (data.message || data.error || 'Failed to approve'));
+    // Handle confirmation
+    confirmModal.querySelector('#confirm-approve').onclick = async () => {
+        confirmModal.remove();
+
+        // Show loading state
+        const loadingModal = showLoadingModal('Approving event...');
+
+        try {
+            const res = await fetch(`/api/approve-event/${eventId}`, {
+                method: 'POST'
+            });
+
+            const data = await res.json();
+            loadingModal.remove();
+
+            if (res.ok && data.success) {
+                showSuccessModal('✅ Event approved successfully!');
+                showApprovalsModal(); // Refresh list
+                updatePendingCount(); // Update badge
+                loadData(); // Refresh dashboard
+            } else {
+                showErrorModal(data.message || data.error || 'Failed to approve');
+            }
+        } catch (e) {
+            console.error('Error approving event:', e);
+            loadingModal.remove();
+            showErrorModal('Error approving event');
         }
-    } catch (e) {
-        console.error('Error approving event:', e);
-        alert('Error approving event');
-    }
+    };
+
+    confirmModal.querySelector('#cancel-approve').onclick = () => {
+        confirmModal.remove();
+    };
 }
 
 // Reject event
 async function rejectEvent(eventId) {
-    const reason = prompt('Reason for rejection (optional):');
-    if (reason === null) return; // User cancelled
+    // Create custom input modal
+    const inputModal = document.createElement('div');
+    inputModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
 
-    try {
-        const res = await fetch(`/api/reject-event/${eventId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason: reason || 'No reason provided' })
-        });
+    inputModal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px;">
+            <h3 style="margin: 0 0 1rem 0;">Reject Event</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Please provide a reason for rejection (optional):</p>
+            <textarea id="reject-reason" class="chat-input" style="width: 100%; min-height: 80px; margin-bottom: 1.5rem; resize: vertical;" placeholder="Enter reason..."></textarea>
+            <div style="display: flex; gap: 1rem;">
+                <button id="cancel-reject" style="flex: 1; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Cancel
+                </button>
+                <button id="confirm-reject" style="flex: 1; background: #ef4444; color: white; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Reject
+                </button>
+            </div>
+        </div>
+    `;
 
-        const data = await res.json();
+    document.body.appendChild(inputModal);
 
-        if (res.ok && data.success) {
-            alert('Event request rejected');
-            showApprovalsModal(); // Refresh list
-            updatePendingCount(); // Update badge
-        } else {
-            alert('❌ ' + (data.message || data.error || 'Failed to reject'));
+    inputModal.querySelector('#confirm-reject').onclick = async () => {
+        const reason = inputModal.querySelector('#reject-reason').value || 'No reason provided';
+        inputModal.remove();
+
+        const loadingModal = showLoadingModal('Rejecting event...');
+
+        try {
+            const res = await fetch(`/api/reject-event/${eventId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason })
+            });
+
+            const data = await res.json();
+            loadingModal.remove();
+
+            if (res.ok && data.success) {
+                showSuccessModal('Event request rejected');
+                showApprovalsModal();
+                updatePendingCount();
+            } else {
+                showErrorModal(data.message || data.error || 'Failed to reject');
+            }
+        } catch (e) {
+            console.error('Error rejecting event:', e);
+            loadingModal.remove();
+            showErrorModal('Error rejecting event');
         }
-    } catch (e) {
-        console.error('Error rejecting event:', e);
-        alert('Error rejecting event');
-    }
+    };
+
+    inputModal.querySelector('#cancel-reject').onclick = () => {
+        inputModal.remove();
+    };
 }
 
 async function approveDeletion(reqId) {
-    if (!confirm("Confirm deletion of this event?")) return;
-    try {
-        const res = await fetch(`/api/approve-deletion/${reqId}`, { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            alert("Deletion Approved.");
-            showApprovalsModal();
-            updatePendingCount();
-            loadData(); // Update dashboard
-        } else {
-            alert("Failed: " + (data.error || data.message));
+    const confirmModal = document.createElement('div');
+    confirmModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+
+    confirmModal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-trash" style="font-size: 48px; color: #ef4444; margin-bottom: 1rem;"></i>
+            <h3 style="margin: 0 0 1rem 0;">Confirm Deletion</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 2rem;">This will permanently delete the event and free up allocated resources.</p>
+            <div style="display: flex; gap: 1rem;">
+                <button id="cancel-deletion" style="flex: 1; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Cancel
+                </button>
+                <button id="confirm-deletion" style="flex: 1; background: #ef4444; color: white; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Delete
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(confirmModal);
+
+    confirmModal.querySelector('#confirm-deletion').onclick = async () => {
+        confirmModal.remove();
+        const loadingModal = showLoadingModal('Approving deletion...');
+
+        try {
+            const res = await fetch(`/api/approve-deletion/${reqId}`, { method: 'POST' });
+            const data = await res.json();
+            loadingModal.remove();
+
+            if (data.success) {
+                showSuccessModal('Deletion approved');
+                showApprovalsModal();
+                updatePendingCount();
+                loadData();
+            } else {
+                showErrorModal(data.error || data.message || 'Failed to approve deletion');
+            }
+        } catch (e) {
+            loadingModal.remove();
+            showErrorModal('Error approving deletion');
         }
-    } catch (e) {
-        alert("Error approving deletion.");
-    }
+    };
+
+    confirmModal.querySelector('#cancel-deletion').onclick = () => {
+        confirmModal.remove();
+    };
 }
 
 async function rejectDeletion(reqId) {
-    if (!confirm("Reject this deletion request?")) return;
-    try {
-        const res = await fetch(`/api/reject-deletion/${reqId}`, { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            alert("Deletion Rejected.");
-            showApprovalsModal();
-            updatePendingCount();
-        } else {
-            alert("Failed: " + (data.error || data.message));
+    const confirmModal = document.createElement('div');
+    confirmModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
+
+    confirmModal.innerHTML = `
+        <div class="glass-panel" style="padding: 2rem; max-width: 400px; text-align: center;">
+            <i class="ph ph-x-circle" style="font-size: 48px; color: #ef4444; margin-bottom: 1rem;"></i>
+            <h3 style="margin: 0 0 1rem 0;">Reject Deletion Request?</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 2rem;">The event will remain active and resources will stay allocated.</p>
+            <div style="display: flex; gap: 1rem;">
+                <button id="cancel-reject-del" style="flex: 1; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Cancel
+                </button>
+                <button id="confirm-reject-del" style="flex: 1; background: #ef4444; color: white; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Reject
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(confirmModal);
+
+    confirmModal.querySelector('#confirm-reject-del').onclick = async () => {
+        confirmModal.remove();
+        const loadingModal = showLoadingModal('Rejecting deletion...');
+
+        try {
+            const res = await fetch(`/api/reject-deletion/${reqId}`, { method: 'POST' });
+            const data = await res.json();
+            loadingModal.remove();
+
+            if (data.success) {
+                showSuccessModal('Deletion request rejected');
+                showApprovalsModal();
+                updatePendingCount();
+            } else {
+                showErrorModal(data.error || data.message || 'Failed to reject');
+            }
+        } catch (e) {
+            loadingModal.remove();
+            showErrorModal('Error rejecting deletion');
         }
-    } catch (e) {
-        alert("Error rejecting deletion.");
-    }
+    };
+
+    confirmModal.querySelector('#cancel-reject-del').onclick = () => {
+        confirmModal.remove();
+    };
 }
 
 // Event listeners

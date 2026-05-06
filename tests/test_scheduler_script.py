@@ -7,9 +7,6 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from utils.scheduler import Scheduler
 from utils.data_manager import DataManager
 
-# Reset files for testing (optional, or just add dummy data)
-# For now, let's just try to find a room for a new event
-
 print("--- Testing Scheduler ---")
 
 # 1. Find a room for 50 people

@@ -1,4 +1,3 @@
-# Role-based permission utilities
 
 ROLES = {
     'admin': {

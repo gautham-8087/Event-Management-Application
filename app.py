@@ -1,11 +1,12 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from utils.data_manager import DataManager
 from utils.scheduler import Scheduler
-from utils.ai_assistant import AIAssistant
 from utils.supabase_client import supabase
+from utils.ai_assistant import AIAssistant
 import json
 import re
 import os
+import uuid
 from functools import wraps
 
 app = Flask(__name__)
@@ -13,7 +14,6 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev_super_secret_key_123')
 
 ai_assistant = AIAssistant()
 
-# --- Auth Middleware ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -70,6 +70,8 @@ def api_login():
     except Exception as e:
         print(f"Login error: {e}")
         return jsonify({"error": "Login failed"}), 400
+    
+    
 
 @app.route('/api/signup', methods=['POST'])
 def api_signup():
@@ -103,26 +105,9 @@ def get_events():
 def delete_event(event_id):
     user_role = session.get('role', 'student')
     
-    if user_role == 'student':
-        return jsonify({"error": "Unauthorized"}), 403
-        
-    if user_role == 'teacher':
-        # Create deletion request
-        try:
-            # Check if already requested
-            existing = supabase.table('deletion_requests').select('*').eq('event_id', event_id).eq('status', 'pending').execute()
-            if existing.data:
-                return jsonify({"message": "Deletion request already pending"}), 200
-                
-            supabase.table('deletion_requests').insert({
-                "id": f"DEL-{event_id}",
-                "event_id": event_id,
-                "requested_by": session.get('user')
-            }).execute()
-            return jsonify({"success": True, "message": "Deletion requested. Waiting for Admin approval.", "status": "pending"})
-        except Exception as e:
-            print(f"Error requesting deletion: {e}")
-            return jsonify({"error": "Failed to request deletion"}), 500
+    # Only admins can delete events
+    if user_role != 'admin':
+        return jsonify({"error": "Unauthorized. Only administrators can delete events."}), 403
 
     # Admin deletes directly
     try:
@@ -177,7 +162,7 @@ def chat():
             resources = command.get('resources')
             
             new_event = {
-                "id": f"EVT-{len(DataManager.get_events()) + 100}",
+                "id": f"EVT-{uuid.uuid4()}",
                 "title": event_details.get('title', 'AI Scheduled Event'),
                 "type": event_details.get('type'),
                 "start_time": event_details.get('start'),
@@ -240,7 +225,7 @@ def book_manual():
             capacity = int(capacity_str) if capacity_str and capacity_str.strip() else 0
             
             pending_event = {
-                "id": f"PEND-{len(supabase.table('pending_events').select('id').execute().data) + 1}",
+                "id": f"PEND-{uuid.uuid4()}",
                 "title": event_details.get('title'),
                 "type": event_details.get('type'),
                 "start_time": event_details.get('start'),
@@ -266,7 +251,7 @@ def book_manual():
         # Admin/Teacher create directly
         else:
             new_event = {
-                "id": f"EVT-{len(DataManager.get_events()) + 300}",
+                "id": f"EVT-{uuid.uuid4()}",
                 "title": event_details.get('title'),
                 "type": event_details.get('type'),
                 "start_time": event_details.get('start'),
@@ -355,7 +340,7 @@ def approve_event(event_id):
         pending = result.data[0]
         
         new_event = {
-            "id": f"EVT-{len(DataManager.get_events()) + 500}",
+            "id": f"EVT-{uuid.uuid4()}",
             "title": pending['title'],
             "type": pending['type'],
             "start_time": pending['start_time'],
@@ -419,18 +404,15 @@ def get_deletion_requests():
         return jsonify({"error": "Unauthorized"}), 403
         
     try:
-        # Join with events table to get titles (Supabase join syntax or just fetch events separately)
-        # Simple approach: fetch requests, then fetch event details for them
         requests = supabase.table('deletion_requests').select('*').eq('status', 'pending').execute()
         
         enriched_requests = []
         if requests.data:
             for req in requests.data:
-                # get event details
+          
                 evt_res = supabase.table('events').select('title, type').eq('id', req['event_id']).execute()
                 evt_info = evt_res.data[0] if evt_res.data else {"title": "Unknown Event", "type": "Unknown"}
                 
-                # get user details
                 user_res = supabase.table('users').select('full_name, email').eq('id', req['requested_by']).execute()
                 user_info = user_res.data[0] if user_res.data else {"full_name": "Unknown", "email": "Unknown"}
                 
@@ -451,22 +433,36 @@ def approve_deletion(request_id):
         return jsonify({"error": "Unauthorized"}), 403
         
     try:
-        # Get request info
         req = supabase.table('deletion_requests').select('*').eq('id', request_id).execute()
         if not req.data:
             return jsonify({"error": "Request not found"}), 404
             
         event_id = req.data[0]['event_id']
         
-        # Delete the event
+        
         DataManager.delete_event(event_id)
         
-        # Update request status
+       
         supabase.table('deletion_requests').update({"status": "approved"}).eq('id', request_id).execute()
         
         return jsonify({"success": True, "message": "Deletion approved and event removed."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/events', methods=['POST'])
+@login_required
+def create_event():
+    data = request.json
+    description = data.get("description", "")
+ 
+
+    if len(description) > 20: 
+        return jsonify({
+            "error": "Description must be 20 characters or less"
+        }), 400
+    DataManager.create_event(data)
+    return jsonify({"message": "Event created successfully"}), 201
+
 
 @app.route('/api/reject-deletion/<request_id>', methods=['POST'])
 @login_required
@@ -494,4 +490,16 @@ def get_archived_events():
         return jsonify([])
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    if not supabase:
+        print("\n" + "="*60)
+        print("WARNING: Supabase client not initialized!")
+        print("Please check your .env file for SUPABASE_URL and SUPABASE_KEY")
+        print("="*60 + "\n")
+    
+    app.run(
+        debug=True, 
+        port=5000,
+        use_reloader=True,
+        extra_files=[]  
+    )
+

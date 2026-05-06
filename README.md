@@ -71,26 +71,36 @@ https://drive.google.com/drive/folders/1f9yo210F896c4dg7w88huwhw8An960wt?usp=dri
 
 ### 📥 Clone Repository
 
+1. Clone the repository:
+
 ```bash
 git clone https://github.com/gautham-8087/Event-IQ.git
 cd Event-IQ
-📦 Install Dependencies
+```
+
+2. Install dependencies:
+
+```bash
 pip install -r requirements.txt
 🔑 Configure Environment Variables
 
 Create a .env file in the root directory:
 
+3. Create `.env` file:
+
+```env
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_anon_key
 USE_SUPABASE=True
 SECRET_KEY=your_secret_key
 GEMINI_API_KEY=your_gemini_api_key
-🗄️ Database Setup
-Open Supabase Dashboard
-Go to SQL Editor
-Run the script from:
-supabase_schema.sql
-▶️ Run Application
+```
+
+4. Set up database tables by running the SQL in `supabase_schema.sql` in your Supabase SQL Editor.
+
+5. Run the application:
+
+```bash
 python app.py
 🌐 Access the App
 http://127.0.0.1:5000

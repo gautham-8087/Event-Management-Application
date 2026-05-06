@@ -1,4 +1,3 @@
-# Pending events endpoints
 
 @app.route('/api/pending-events', methods=['GET'])
 @login_required
@@ -9,13 +8,13 @@ def get_pending_events():
     
     try:
         if user_role in ['admin', 'teacher']:
-            # Show all pending events
+            
             result = supabase.table('pending_events')\
                 .select('*, users!pending_events_requested_by_fkey(email, full_name)')\
                 .eq('status', 'pending')\
                 .execute()
         else:
-            # Students see only their own
+            
             result = supabase.table('pending_events')\
                 .select('*')\
                 .eq('requested_by', user_id)\
@@ -33,7 +32,7 @@ def approve_event(event_id):
     user_role = session.get('role', 'student')
     user_id = session.get('user')
     
-    # Only admin/teacher can approve
+    
     if user_role not in ['admin', 'teacher']:
         return jsonify({"error": "Unauthorized"}), 403
     
@@ -41,7 +40,6 @@ def approve_event(event_id):
         import json
         from utils.scheduler import Scheduler
         
-        # Get pending event
         result = supabase.table('pending_events').select('*').eq('id', event_id).execute()
         
         if not result.data or len(result.data) == 0:
@@ -49,7 +47,6 @@ def approve_event(event_id):
         
         pending = result.data[0]
         
-        # Create actual event
         new_event = {
             "id": f"EVT-{len(DataManager.get_events()) + 500}",  # Different range for approved events
             "title": pending['title'],
@@ -60,14 +57,14 @@ def approve_event(event_id):
             "created_by": pending['requested_by']
         }
         
-        # Parse resource IDs from JSON string
+        
         resource_ids = json.loads(pending['requested_resources'])
         
-        # Schedule the event
+     
         success, msg = Scheduler.schedule_event(new_event, resource_ids)
         
         if success:
-            # Update pending event status
+        
             supabase.table('pending_events').update({
                 "status": "approved",
                 "reviewed_by": user_id,
