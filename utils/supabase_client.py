@@ -1,5 +1,6 @@
 import json
 import os
+import bcrypt
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -21,6 +22,26 @@ def _load_rows(filepath: Path) -> List[Dict[str, Any]]:
 def _save_rows(filepath: Path, rows: List[Dict[str, Any]]) -> None:
     filepath.parent.mkdir(parents=True, exist_ok=True)
     filepath.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+
+
+def _default_users() -> List[Dict[str, Any]]:
+    defaults = [
+        ("admin-001", "admin@gmail.com", "admin@123", "admin", "Administrator"),
+        ("teacher-001", "teacher@gmail.com", "teacher@123", "teacher", "Teacher"),
+        ("student-001", "student@gmail.com", "student@123", "student", "Student"),
+    ]
+    users: List[Dict[str, Any]] = []
+    for user_id, email, password, role, full_name in defaults:
+        users.append(
+            {
+                "id": user_id,
+                "email": email,
+                "password_hash": bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
+                "role": role,
+                "full_name": full_name,
+            }
+        )
+    return users
 
 
 @dataclass
@@ -163,6 +184,9 @@ class LocalSupabaseClient:
                 if seed_path.exists():
                     _save_rows(path, _load_rows(seed_path))
                     return
+            if path.name == "users.json":
+                _save_rows(path, _default_users())
+                return
             _save_rows(path, [])
 
     def _read_table(self, table_name: str) -> List[Dict[str, Any]]:
